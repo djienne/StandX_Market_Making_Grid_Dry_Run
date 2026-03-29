@@ -77,11 +77,11 @@ pub fn log_grid_summary(
     let full = lines.join("\n");
     info!("{}", full);
 
-    // Also write to summary.log
+    // Write summary.log (overwrite each time — historical data lives in state files and CSVs)
     let log_dir = logs_dir;
     let _ = fs::create_dir_all(log_dir);
     let log_path = format!("{}/summary.log", log_dir);
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_path) {
+    if let Ok(mut file) = OpenOptions::new().create(true).write(true).truncate(true).open(&log_path) {
         let _ = writeln!(file, "[{}]\n{}\n", Utc::now().to_rfc3339(), full);
     }
 }
