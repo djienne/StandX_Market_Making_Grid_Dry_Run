@@ -3,6 +3,8 @@
 Runs **N independent paper-trading simulations** sharing **one WebSocket feed** to StandX.
 No credentials or authentication required. Ported from the lighter_MM Python grid dry-run.
 
+**Support this project:** Sign up on StandX using [this referral link](https://standx.com/referral?code=FREQTRADEFR)
+
 ## Quick Start
 
 ```bash
@@ -116,6 +118,30 @@ With 136 slots on BTC-USD:
 - **CPU**: <1% (single-threaded hot path)
 - **Disk**: ~700 KB/hour (state JSONs + summary log, trade CSVs grow with fills)
 - **Network**: 1 WebSocket connection (~10 KB/s)
+
+## OBI Market-Making Strategy
+
+Each slot runs an **Order Book Imbalance (OBI)** market-making strategy. OBI exploits the
+observation that when buy-side depth significantly exceeds sell-side depth (or vice versa),
+the mid-price tends to move toward the heavier side. The strategy:
+
+1. **Measures orderbook imbalance** — compares bid vs ask depth within a configurable
+   looking depth around the mid-price
+2. **Estimates short-term volatility** — using a rolling window of mid-price returns
+   (O(1) incremental std via Welford's algorithm)
+3. **Sets spread width** — `half_spread = max(vol_to_half_spread * rolling_vol, min_half_spread_bps)`
+4. **Skews quotes** — shifts the mid-point toward the heavier side of the book by
+   `skew * imbalance`, so the strategy leans into the predicted direction while still
+   providing two-sided liquidity
+
+The two key parameters swept by the grid are:
+- **vol_to_half_spread**: How many multiples of rolling volatility to use as half-spread
+  (lower = tighter quotes, more fills, more adverse selection)
+- **skew**: How aggressively to lean into orderbook imbalance
+  (lower = more symmetric, higher = more directional)
+
+For a detailed walkthrough of the OBI strategy and its implementation, see:
+[OBI Market Making Strategy Explained](https://youtu.be/7P3MwTRjy2I)
 
 ## Architecture
 
