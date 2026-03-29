@@ -45,6 +45,7 @@ use crate::websocket::{WsClientBuilder, WsEvent, StandXMessage};
 #[command(about = "Grid dry-run simulator for StandX market making strategies")]
 struct Args {
     /// Path to grid_config.json
+    #[arg(default_value = "grid_config.json")]
     config: String,
 
     /// Run duration in seconds (0 = run until Ctrl+C)
