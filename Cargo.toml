@@ -1,0 +1,50 @@
+[package]
+name = "standx-dry-run-grid"
+version = "0.1.0"
+edition = "2021"
+description = "Grid dry-run simulator for StandX market making strategies"
+
+[[bin]]
+name = "standx-dry-run-grid"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full", "parking_lot"] }
+
+# WebSocket
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Fast float parsing (faster than std::str::parse)
+fast-float = "0.2"
+
+# URL parsing
+url = "2.5"
+
+# CLI args
+clap = { version = "4.0", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 1

@@ -1,0 +1,22 @@
+# Build artifacts
+/target/
+
+# Logs and runtime data
+/logs/
+run.log
+nohup.out
+
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Temp files
+*.tmp
+*.swp
+*~
+
+# OS
+.DS_Store
