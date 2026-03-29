@@ -8,11 +8,11 @@
   "maker_fee_rate": 0.0001,
   "orderbook_levels": 20,
   "parameters": {
-    "vol_to_half_spread": [6, 8, 10, 12, 15, 18, 21, 24, 30, 36, 42, 48, 54, 60, 70, 80],
+    "vol_to_half_spread": [4, 6, 8, 10, 12, 15, 18, 21, 24, 30, 36, 42, 48, 54, 60, 70, 80],
     "skew": [0.1, 0.5, 1.0, 1.5, 2.5, 3.0, 4.0, 5.0]
   },
   "fixed": {
-    "min_half_spread_bps": 4.0,
+    "min_half_spread_bps": 2.0,
     "spread_factor_level1": 2.0,
     "num_levels": 2,
     "c1_ticks": 20.0

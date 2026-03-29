@@ -9,7 +9,7 @@ No credentials or authentication required. Ported from the lighter_MM Python gri
 # Build
 cargo build --release
 
-# Run (128 slots, Ctrl+C to stop):
+# Run (136 slots, Ctrl+C to stop):
 ./target/release/standx-dry-run-grid grid_config.json
 
 # Run for a fixed duration (e.g. 3 hours):
@@ -80,11 +80,11 @@ Edit `grid_config.json`:
   "sim_latency_ms": 50,
   "maker_fee_rate": 0.0001,
   "parameters": {
-    "vol_to_half_spread": [6, 8, 10, 12, 15, 18, 21, 24, 30, 36, 42, 48, 54, 60, 70, 80],
+    "vol_to_half_spread": [4, 6, 8, 10, 12, 15, 18, 21, 24, 30, 36, 42, 48, 54, 60, 70, 80],
     "skew": [0.1, 0.5, 1.0, 1.5, 2.5, 3.0, 4.0, 5.0]
   },
   "fixed": {
-    "min_half_spread_bps": 4.0,
+    "min_half_spread_bps": 2.0,
     "spread_factor_level1": 2.0,
     "num_levels": 2,
     "c1_ticks": 20.0
@@ -92,7 +92,7 @@ Edit `grid_config.json`:
 }
 ```
 
-**parameters**: Axes for Cartesian product (16 × 8 = 128 slots above).
+**parameters**: Axes for Cartesian product (17 × 8 = 136 slots above).
 **fixed**: Constant across all slots.
 
 ## Output
@@ -111,8 +111,8 @@ overlapping parameter combos automatically on restart.
 
 ## Resource Usage
 
-With 128 slots on BTC-USD:
-- **RAM**: ~23 MB RSS
+With 136 slots on BTC-USD:
+- **RAM**: ~18 MB RSS
 - **CPU**: <1% (single-threaded hot path)
 - **Disk**: ~700 KB/hour (state JSONs + summary log, trade CSVs grow with fills)
 - **Network**: 1 WebSocket connection (~10 KB/s)
