@@ -3,6 +3,8 @@
 Runs **N independent paper-trading simulations** sharing **one WebSocket feed** to StandX.
 No credentials or authentication required. Ported from the lighter_MM Python grid dry-run.
 
+[![OBI Market Making Strategy](https://img.youtube.com/vi/7P3MwTRjy2I/0.jpg)](https://youtu.be/7P3MwTRjy2I)
+
 **Support this project:** Sign up on StandX using [this referral link](https://standx.com/referral?code=FREQTRADEFR)
 
 ## Quick Start
