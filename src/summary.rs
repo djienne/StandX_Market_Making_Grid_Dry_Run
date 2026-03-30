@@ -75,7 +75,6 @@ pub fn log_grid_summary(
     }
 
     let full = lines.join("\n");
-    info!("{}", full);
 
     // Write summary.log (overwrite each time — historical data lives in state files and CSVs)
     let log_dir = logs_dir;
