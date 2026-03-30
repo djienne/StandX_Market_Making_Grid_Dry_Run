@@ -1,7 +1,6 @@
 # StandX Dry-Run Grid Simulator
 
-Runs **N independent paper-trading simulations** sharing **one WebSocket feed** to StandX.
-No credentials or authentication required. Ported from the lighter_MM Python grid dry-run.
+A Rust market-making dry-run engine that runs hundreds of parameter combinations simultaneously against live StandX DEX and Binance order book feeds, simulating fills in real time without placing real orders — to find optimal spread, skew, and inventory decay settings under actual market conditions.
 
 **Video:** [OBI Market Making Strategy Explained](https://youtu.be/7P3MwTRjy2I)
 
