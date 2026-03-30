@@ -16,13 +16,15 @@ pub fn log_grid_summary(
     mid_price: Option<f64>,
     symbol: &str,
     logs_dir: &str,
+    warmed_up: bool,
 ) {
     let hours = elapsed.as_secs_f64() / 3600.0;
     let mid_str = mid_price.map(|m| format!("${:.2}", m)).unwrap_or_else(|| "N/A".to_string());
 
     let mut lines = Vec::new();
+    let phase = if warmed_up { "ACTIVE" } else { "WARMING UP" };
     lines.push(format!(
-        "\nGRID SUMMARY {} ({} slots, {:.1}h elapsed, mid={})",
+        "\nGRID SUMMARY {} [{phase}] ({} slots, {:.1}h elapsed, mid={})",
         symbol, slots.len(), hours, mid_str
     ));
     lines.push(format!(
@@ -65,11 +67,12 @@ pub fn log_grid_summary(
     if !slots.is_empty() {
         let best = &slots[best_idx];
         lines.push(format!(
-            "Best: {} (v2hs={}, mhbp={}, skew={}) total=${:.4}",
+            "Best: {} (v2hs={}, mhbp={}, skew={}, c1t={}) total=${:.4}",
             best.label,
             best.params.vol_to_half_spread,
             best.params.min_half_spread_bps,
             best.params.skew,
+            best.params.c1_ticks,
             best_pnl,
         ));
     }

@@ -12,6 +12,7 @@ import argparse
 import csv
 import json
 import os
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -90,6 +91,37 @@ def load_trade_counts(grid_dir: str) -> dict:
     return counts
 
 
+def get_grid_status(config_path: str = "grid_config.json") -> str:
+    """Check if the grid process is running and whether it's in warmup."""
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "standx-dry-run-grid"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return "STOPPED"
+        pid = result.stdout.strip().split("\n")[0]
+        elapsed_result = subprocess.run(
+            ["ps", "-o", "etimes=", "-p", pid],
+            capture_output=True, text=True,
+        )
+        elapsed_s = int(elapsed_result.stdout.strip())
+        warmup_seconds = 600
+        try:
+            with open(config_path) as f:
+                cfg = json.load(f)
+            warmup_seconds = cfg.get("warmup_seconds", 600)
+        except (OSError, json.JSONDecodeError):
+            pass
+        if elapsed_s < warmup_seconds:
+            return f"RUNNING — warmup ({elapsed_s}/{int(warmup_seconds)}s)"
+        else:
+            active_s = elapsed_s - int(warmup_seconds)
+            return f"RUNNING — active, placing orders ({active_s}s since warmup)"
+    except Exception:
+        return "UNKNOWN"
+
+
 def format_usd(val: float) -> str:
     return f"${val:>+9.4f}"
 
@@ -146,9 +178,9 @@ def print_summary(slots: list, trade_counts: dict, top_n: int, sort_key: str, ma
                 pass
     latest = max(timestamps) if timestamps else None
 
-    print("=" * 95)
+    print("=" * 101)
     print("STANDX GRID DRY-RUN RESULTS SUMMARY")
-    print("=" * 95)
+    print("=" * 101)
     print(f"  Slots: {total_slots} total, {active_slots} with fills, {total_slots - active_slots} idle")
     print(f"  Fills: {total_fills:,}")
     print(f"  Volume: ${total_volume:,.2f}")
@@ -157,16 +189,18 @@ def print_summary(slots: list, trade_counts: dict, top_n: int, sort_key: str, ma
     if latest:
         age = datetime.now(timezone.utc) - latest
         print(f"  Last update: {latest.strftime('%Y-%m-%d %H:%M:%S UTC')} ({age.total_seconds()/3600:.1f}h ago)")
+    print(f"  Status: {get_grid_status()}")
     print()
 
     # Top N
     print(f"TOP {top_n} (sorted by {sort_key}):")
-    print(f"{'#':>3} {'v2hs':>5} {'skew':>5} {'Fills':>6} {'Realized':>10} {'Unrealzd':>10} {'Total':>10} {'Fees':>8} {'$/Fill':>8} {'Volume':>10}")
-    print("-" * 95)
+    print(f"{'#':>3} {'v2hs':>5} {'skew':>5} {'c1t':>5} {'Fills':>6} {'Realized':>10} {'Unrealzd':>10} {'Total':>10} {'Fees':>8} {'$/Fill':>8} {'Volume':>10}")
+    print("-" * 101)
     for i, s in enumerate(slots[:top_n]):
         p = s.get("params", {})
         print(
             f"{i+1:>3} {p.get('vol_to_half_spread', '?'):>5} {p.get('skew', '?'):>5} "
+            f"{p.get('c1_ticks', '?'):>5} "
             f"{s.get('fill_count', 0):>6} "
             f"{format_usd(s.get('realized_pnl', 0))} "
             f"{format_usd(s['unrealized_pnl'])} "
@@ -181,12 +215,13 @@ def print_summary(slots: list, trade_counts: dict, top_n: int, sort_key: str, ma
     # Bottom N
     bottom = list(reversed(slots[-min(top_n, len(slots)):]))
     print(f"BOTTOM {len(bottom)} (worst performers):")
-    print(f"{'#':>3} {'v2hs':>5} {'skew':>5} {'Fills':>6} {'Realized':>10} {'Unrealzd':>10} {'Total':>10} {'Fees':>8} {'$/Fill':>8} {'Volume':>10}")
-    print("-" * 95)
+    print(f"{'#':>3} {'v2hs':>5} {'skew':>5} {'c1t':>5} {'Fills':>6} {'Realized':>10} {'Unrealzd':>10} {'Total':>10} {'Fees':>8} {'$/Fill':>8} {'Volume':>10}")
+    print("-" * 101)
     for i, s in enumerate(bottom):
         p = s.get("params", {})
         print(
             f"{i+1:>3} {p.get('vol_to_half_spread', '?'):>5} {p.get('skew', '?'):>5} "
+            f"{p.get('c1_ticks', '?'):>5} "
             f"{s.get('fill_count', 0):>6} "
             f"{format_usd(s.get('realized_pnl', 0))} "
             f"{format_usd(s['unrealized_pnl'])} "
@@ -202,7 +237,7 @@ def print_summary(slots: list, trade_counts: dict, top_n: int, sort_key: str, ma
     print("PARAMETER ANALYSIS (average total PnL by axis):")
     print()
 
-    for param_name in ["vol_to_half_spread", "skew"]:
+    for param_name in ["vol_to_half_spread", "skew", "c1_ticks"]:
         by_val = defaultdict(list)
         for s in slots:
             val = s.get("params", {}).get(param_name)
@@ -225,36 +260,43 @@ def print_summary(slots: list, trade_counts: dict, top_n: int, sort_key: str, ma
             )
         print()
 
-    # Heatmap
-    v2hs_vals = sorted(set(s.get("params", {}).get("vol_to_half_spread") for s in slots if s.get("params", {}).get("vol_to_half_spread") is not None))
-    skew_vals = sorted(set(s.get("params", {}).get("skew") for s in slots if s.get("params", {}).get("skew") is not None))
-
-    if len(v2hs_vals) > 1 and len(skew_vals) > 1:
-        lookup = {}
+    # Heatmaps (averaged over remaining axes)
+    def print_heatmap(slots, row_param, col_param, row_label, col_label, title):
+        row_vals = sorted(set(s["params"].get(row_param) for s in slots if s["params"].get(row_param) is not None))
+        col_vals = sorted(set(s["params"].get(col_param) for s in slots if s["params"].get(col_param) is not None))
+        if len(row_vals) < 2 or len(col_vals) < 2:
+            return
+        cells = defaultdict(list)
         for s in slots:
-            p = s.get("params", {})
-            v = p.get("vol_to_half_spread")
-            sk = p.get("skew")
-            if v is not None and sk is not None:
-                lookup[(v, sk)] = s["total_pnl"]
-
-        print("PnL HEATMAP (vol_to_half_spread x skew):")
-        label = "v2hs\\skew"
+            r = s["params"].get(row_param)
+            c = s["params"].get(col_param)
+            if r is not None and c is not None:
+                cells[(r, c)].append(s["total_pnl"])
+        print(f"{title}:")
+        label = f"{row_label}\\{col_label}"
         header = f"{label:>10}"
-        for sk in skew_vals:
-            header += f" {sk:>7}"
+        for c in col_vals:
+            header += f" {c:>7}"
         print(header)
-        print("-" * (10 + 8 * len(skew_vals)))
-        for v in v2hs_vals:
-            row = f"{v:>10}"
-            for sk in skew_vals:
-                pnl = lookup.get((v, sk))
-                if pnl is not None:
-                    row += f" {pnl:>+7.2f}"
+        print("-" * (10 + 8 * len(col_vals)))
+        for r in row_vals:
+            row = f"{r:>10}"
+            for c in col_vals:
+                pnls = cells.get((r, c))
+                if pnls:
+                    avg = sum(pnls) / len(pnls)
+                    row += f" {avg:>+7.2f}"
                 else:
                     row += "       -"
             print(row)
         print()
+
+    print_heatmap(slots, "vol_to_half_spread", "skew", "v2hs", "skew",
+                  "PnL HEATMAP (v2hs x skew, avg over c1_ticks)")
+    print_heatmap(slots, "c1_ticks", "vol_to_half_spread", "c1t", "v2hs",
+                  "PnL HEATMAP (c1_ticks x v2hs, avg over skew)")
+    print_heatmap(slots, "c1_ticks", "skew", "c1t", "skew",
+                  "PnL HEATMAP (c1_ticks x skew, avg over v2hs)")
 
 
 def main():

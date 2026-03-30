@@ -17,7 +17,9 @@ pub struct GridRunner {
     last_save: Instant,
     book_update_count: u64,
     warmed_up: bool,
+    warmup_logged: bool,
     warmup_start: Instant,
+    last_warmup_progress: Instant,
     last_mid: Option<f64>,
 }
 
@@ -53,7 +55,9 @@ impl GridRunner {
             last_save: now,
             book_update_count: 0,
             warmed_up: false,
+            warmup_logged: false,
             warmup_start: now,
+            last_warmup_progress: now,
             last_mid: None,
         }
     }
@@ -68,6 +72,11 @@ impl GridRunner {
 
     /// Feed orderbook to all slots during warmup (strategies accumulate data, no orders).
     pub fn feed_warmup(&mut self, snapshot: &OrderbookSnapshot) {
+        if !self.warmup_logged {
+            self.warmup_logged = true;
+            info!("Warmup started ({:.0}s). Accumulating data, no orders placed yet.",
+                self.config.warmup_seconds);
+        }
         for slot in &mut self.slots {
             slot.strategy.set_position(slot.engine.position);
             let _ = slot.strategy.update(snapshot);
@@ -78,6 +87,12 @@ impl GridRunner {
             self.warmed_up = true;
             info!("Warmup complete ({:.0}s). Starting grid dry-run with {} slots.",
                 elapsed, self.slots.len());
+        } else if self.last_warmup_progress.elapsed().as_secs() >= 60 {
+            self.last_warmup_progress = Instant::now();
+            let pct = (elapsed / self.config.warmup_seconds * 100.0) as u32;
+            let remaining = (self.config.warmup_seconds - elapsed) as u64;
+            info!("Warmup {}% — {:.0}s / {:.0}s ({remaining}s remaining)",
+                pct, elapsed, self.config.warmup_seconds);
         }
     }
 
@@ -99,7 +114,7 @@ impl GridRunner {
         if now.duration_since(self.last_summary) >= summary_interval {
             self.last_summary = now;
             let elapsed = self.start_time.elapsed();
-            summary::log_grid_summary(&self.slots, elapsed, mid_price, &self.config.symbol, &self.config.logs_dir);
+            summary::log_grid_summary(&self.slots, elapsed, mid_price, &self.config.symbol, &self.config.logs_dir, self.warmed_up);
         }
 
         // State persistence (every 60s)
@@ -117,7 +132,9 @@ impl GridRunner {
     pub fn on_disconnect(&mut self) {
         info!("WebSocket disconnected, cancelling orders and resetting strategies");
         self.warmed_up = false;
+        self.warmup_logged = false;
         self.warmup_start = Instant::now();
+        self.last_warmup_progress = Instant::now();
         for slot in &mut self.slots {
             slot.engine.cancel_all();
             slot.strategy.reset_state();
