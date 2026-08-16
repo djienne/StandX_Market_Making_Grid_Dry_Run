@@ -1,0 +1,14 @@
+# Build context hygiene: target/ is multi-GB of Rust build output and must
+# never enter the image (the multi-stage builder produces its own).
+target/
+.git/
+results/
+*.log
+
+# Credentials must never enter an image layer. This crate needs none, but the
+# rule is cheap and stops a future .env from being baked in.
+.env
+.env.*
+!.env.example
+*.pem
+*.key

@@ -1,0 +1,37 @@
+services:
+  standx-grid-dry-run:
+    build: .
+    image: standx-dry-run-grid:latest
+    container_name: standx-grid-dry-run
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+
+    # Paper trading by construction: this crate has no live order path and needs
+    # no credentials, so unlike the Lighter makers there is no live variant to
+    # keep separate. Nothing sensitive is mounted.
+    #
+    # grid_config.json expands to 400 sims (8 x 5 x 10) sharing one websocket.
+    # Rust makes that far cheaper than the Python equivalent, but it is still a
+    # research job on a box running live traders - capped so it cannot starve
+    # them. Raise if sims fall behind the feed.
+    cpus: 1.5
+    mem_limit: 2g
+    memswap_limit: 2g
+    network_mode: bridge
+
+    volumes:
+      # Grid results, read by check_grid_results.py on the host.
+      - ./results:/app/results
+      # Tune the sweep without rebuilding the image.
+      - ./grid_config.json:/app/grid_config.json:ro
+
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - TZ=UTC
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
